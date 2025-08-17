@@ -10,6 +10,6 @@ projects:
     path: "LanguageManager"
     type: "plugin"
     libs:
-      - src: ChernegaSergiy\Language\libLanguage
+      - src: ChernegaSergiy/Language/libLanguage
         version: ^0.0.1
 ...
