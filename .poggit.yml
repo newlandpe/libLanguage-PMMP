@@ -10,6 +10,6 @@ projects:
     path: "LanguageManager"
     type: "plugin"
     libs:
-      - src: Language/src/
+      - src: libLanguage-PMMP/Language/src/
         version: ^0.0.1
 ...
