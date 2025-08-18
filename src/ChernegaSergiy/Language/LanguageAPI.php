@@ -30,14 +30,25 @@ class LanguageAPI {
     }
 
     /**
-     * @param CommandSender $sender
+     * @param CommandSender|null $sender
      * @return string
      */
-    public function resolveLocale(CommandSender $sender): string {
+    public function resolveLocale(?CommandSender $sender): string {
+        if ($sender === null) {
+            $defaultLang = $this->translator->getDefaultLanguage();
+            if ($defaultLang !== null) {
+                return $defaultLang->getLocale();
+            }
+            return "en_US";
+        }
         if ($sender instanceof Player) {
             return $sender->getLocale();
         }
-        return $this->translator->getDefaultLanguage()->getLocale();
+        $defaultLang = $this->translator->getDefaultLanguage();
+        if ($defaultLang !== null) {
+            return $defaultLang->getLocale();
+        }
+        return "en_US";
     }
 
     /**
