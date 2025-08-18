@@ -10,6 +10,6 @@ projects:
     path: "LanguageManager"
     type: "plugin"
     libs:
-      - src: libLanguage-PMMP/Language/src/
+      - src: newlandpe/libLanguage-PMMP/Language
         version: ^0.0.1
 ...
