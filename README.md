@@ -19,7 +19,7 @@ projects:
     path: ""
     type: "plugin"
     libs:
-      - src: ChernegaSergiy/Language
+      - src: newlandpe/libLanguage/libLanguage
         version: ^0.0.1 # Use the latest version or a specific one
 ```
 
@@ -234,7 +234,7 @@ class MyPlugin extends PluginBase {
 ```
 
 > [!NOTE]
-> For a complete, working example of how to manage player languages and utilize the `libLanguage` virion, you can download the `LanguageManager` plugin directly from its Poggit-CI page: [LanguageManager on Poggit-CI](https://poggit.pmmp.io/ci/newlandpe/libLanguage-PMMP/LanguageManager)
+> For a complete, working example of how to manage player languages and utilize the `libLanguage` virion, you can download the `LanguageManager` plugin directly from its Poggit-CI page: [LanguageManager on Poggit-CI](https://poggit.pmmp.io/ci/newlandpe/LanguageManager/LanguageManager)
 
 ### Adding New Languages
 
@@ -289,53 +289,6 @@ class MyPlugin extends PluginBase {
     }
 
     // ... other plugin methods using $this->myPluginLanguageAPI
-}
-```
-
-### Using LanguageManager as a Central Language Provider
-
-If you want to use the `LanguageManager` plugin as a central source for language management across multiple plugins, you can access its `LanguageAPI` instance directly. This allows `LanguageManager` to manage a global set of languages that other plugins can utilize.
-
-To do this, your plugin needs to:
-1. Add `LanguageManager` as a `softdepend` in its `plugin.yml`.
-2. Access the `LanguageManager` plugin instance and then its `LanguageAPI` via the static `getLanguageAPI()` method.
-
-```php
-<?php
-
-namespace AnotherPlugin;
-
-use ChernegaSergiy\LanguageManager\Main as LanguageManagerPlugin; // Alias the main class
-use ChernegaSergiy\Language\LanguageAPI;
-use pocketmine\plugin\PluginBase;
-use pocketmine\Server;
-
-class AnotherPlugin extends PluginBase {
-
-    private ?LanguageAPI $centralLanguageAPI = null;
-
-    public function onEnable(): void {
-        $languageManagerPlugin = $this->getServer()->getPluginManager()->getPlugin("LanguageManager");
-
-        if ($languageManagerPlugin instanceof LanguageManagerPlugin) {
-            $this->centralLanguageAPI = $languageManagerPlugin::getLanguageAPI();
-            $this->getLogger()->info("Successfully hooked into LanguageManager as central language provider.");
-
-            // Now you can use $this->centralLanguageAPI to access languages managed by LanguageManager
-            $message = $this->centralLanguageAPI->localize(
-                $this->getServer()->getConsoleSender(),
-                "welcome.message",
-                ["%player%" => "Console"]
-            );
-            $this->getLogger()->info("Translated via central API: " . $message);
-
-        } else {
-            $this->getLogger()->warning("LanguageManager plugin not found or not enabled. Using isolated LanguageAPI instance.");
-            // Fallback to isolated instance if LanguageManager is not available
-            $this->centralLanguageAPI = new LanguageAPI();
-            // ... your own language setup for this plugin
-        }
-    }
 }
 ```
 
