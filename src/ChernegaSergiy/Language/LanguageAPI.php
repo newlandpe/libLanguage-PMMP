@@ -57,9 +57,12 @@ class LanguageAPI {
      * @param array $args
      * @return string
      */
-    public function localize(?CommandSender $sender, string $key, array $args = []): string {
-        $locale = $this->resolveLocale($sender);
-        return $this->translator->translate($key, $args, $locale);
+    public function localize(?CommandSender $sender, string $key, array $args = [], ?string $locale = null): string {
+        $finalLocale = $locale;
+        if ($finalLocale === null) {
+            $finalLocale = $this->resolveLocale($sender);
+        }
+        return $this->translator->translate($key, $args, $finalLocale);
     }
 
     public function getLanguageByLocale(string $locale): ?Language {
