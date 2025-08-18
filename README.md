@@ -1,5 +1,7 @@
 # libLanguage Virion
 
+[![Poggit CI](https://poggit.pmmp.io/ci.shield/newlandpe/libLanguage/libLanguage)](https://poggit.pmmp.io/ci/newlandpe/libLanguage/libLanguage)
+
 `libLanguage` is a powerful and flexible language abstraction library designed for PocketMine-MP plugins. It provides a convenient way to manage multiple language translations within your plugin, allowing for easy localization of messages, commands, and other text-based content.
 
 ## Installation
