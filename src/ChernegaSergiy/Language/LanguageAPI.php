@@ -41,12 +41,12 @@ class LanguageAPI {
     }
 
     /**
-     * @param CommandSender $sender
+     * @param CommandSender|null $sender
      * @param string $key
      * @param array $args
      * @return string
      */
-    public function localize(CommandSender $sender, string $key, array $args = []): string {
+    public function localize(?CommandSender $sender, string $key, array $args = []): string {
         $locale = $this->resolveLocale($sender);
         return $this->translator->translate($key, $args, $locale);
     }
