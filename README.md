@@ -302,8 +302,8 @@ class MyPlugin extends PluginBase {
 * `registerLanguage(Language $language)`: Registers a `Language` instance.
 * `setDefaultLanguage(Language $language)`: Sets the default language.
 * `getTranslator()`: Returns the `Translator` instance.
-* `localize(CommandSender $sender, string $key, array $args = [])`: Localizes a message for a given `CommandSender`.
-* `resolveLocale(CommandSender $sender)`: Resolves the language locale for a given `CommandSender`.
+* `localize(?CommandSender $sender, string $key, array $args = [])`: Localizes a message for a given `CommandSender` or `null` (for console/server messages).
+* `resolveLocale(?CommandSender $sender)`: Resolves the language locale for a given `CommandSender` or `null` (for console/server).
 * `getLanguageByLocale(string $locale)`: Retrieves a `Language` by its locale string.
 * `getLanguages()`: Returns an array of all registered `Language` instances.
 
