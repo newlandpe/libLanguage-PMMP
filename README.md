@@ -6,8 +6,6 @@
 
 ## Installation
 
-### Using Poggit-CI (Recommended)
-
 To include `libLanguage` in your plugin, add it as a virion dependency in your `poggit.yml` file:
 
 ```yaml
@@ -25,85 +23,72 @@ projects:
         version: ^0.0.1 # Use the latest version or a specific one
 ```
 
-Replace `MyPlugin` with your plugin's project name.
+## Architecture: Scoped Translations
 
-### Manual Inclusion
+The core of `libLanguage` is the `LanguageAPI` class, which functions as a centralized, server-wide service (singleton). It provides a **scoped system** to ensure that translations from different plugins do not conflict.
 
-You can also manually include the virion by downloading the `.phar` file from Poggit and placing it in your plugin's `libs` folder, then adding it to your `plugin.yml`'s `depend` or `softdepend` section. However, using Poggit-CI is highly recommended for easier updates and dependency management.
+Each plugin registers its own languages, and the API keeps them isolated. When you request a translation, the API first looks within your plugin's registered languages. If it can't find a translation there, it will fall back to a designated "global" language provider, such as the [LanguageManager](https://poggit.pmmp.io/p/LanguageManager) plugin.
+
+This provides the best of both worlds: **no risk of translation conflicts** between plugins, and a **centralized fallback** for common messages if a language manager is installed.
 
 ## Basic Usage
 
-The core of `libLanguage` is the `LanguageAPI` class, which manages `Translator` and `Language` instances.
+### 1. Registering Your Languages
 
-### 1. Initialize LanguageAPI
+In your plugin's `onEnable()` method, you should register all the language files you want to use. You must pass your plugin's instance (`$this`) to scope the languages correctly.
 
-You should initialize `LanguageAPI` in your plugin's `onEnable()` method. Each instance of `LanguageAPI` manages its own set of languages, providing per-plugin isolation for translations.
+## Basic Usage
+
+`libLanguage` provides a set of interfaces and classes to manage translations in a clean, decoupled way.
+
+### 1. Getting a Translator Instance
+
+To translate messages, you will typically create an instance of `PluginTranslator`. This class requires your plugin's own translations and a `LocaleResolverInterface` instance (which you can get from the `LanguageHub`).
 
 ```php
 <?php
 
 namespace MyPlugin;
 
-use ChernegaSergiy\Language\Language;
-use ChernegaSergiy\Language\LanguageAPI;
+use ChernegaSergiy\Language\LanguageHub;
+use ChernegaSergiy\Language\PluginTranslator;
+use ChernegaSergiy\Language\TranslatorInterface;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
 
 class MyPlugin extends PluginBase {
 
-    private LanguageAPI $languageAPI;
+    private TranslatorInterface $translator;
 
     public function onEnable(): void {
-        $this->languageAPI = new LanguageAPI(); // This creates an isolated instance for your plugin
-        $this->saveDefaultConfig(); // Ensure config.yml exists
-
-        // Load languages
-        $this->loadLanguages();
-
-        // Set default language
-        $defaultLocale = $this->getConfig()->get("default-language", "en_US");
-        $defaultLang = $this->languageAPI->getLanguageByLocale($defaultLocale);
-        if ($defaultLang !== null) {
-            $this->languageAPI->setDefaultLanguage($defaultLang);
-        } else {
-            $this->getLogger()->warning("Default language '{$defaultLocale}' not found. Using first registered language as default.");
-            $allLanguages = $this->languageAPI->getLanguages();
-            if (!empty($allLanguages)) {
-                $this->languageAPI->setDefaultLanguage(reset($allLanguages));
-            }
-        }
-    }
-
-    private function loadLanguages(): void {
-        $languageDir = $this->getDataFolder() . 'languages/';
-        if (!is_dir($languageDir)) {
-            mkdir($languageDir, 0777, true);
-        }
-
-        // Example: Load English language
+        // 1. Load your plugin's translations
         $this->saveResource("languages/en_US.yml");
-        $enTranslations = (new Config($languageDir . "en_US.yml", Config::YAML))->getAll();
-        $english = new Language("en_US", $enTranslations);
-        $this->languageAPI->registerLanguage($english);
-
-        // Example: Load Ukrainian language
         $this->saveResource("languages/uk_UA.yml");
-        $ukTranslations = (new Config($languageDir . "uk_UA.yml", Config::YAML))->getAll();
-        $ukrainian = new Language("uk_UA", $ukTranslations);
-        $this->languageAPI->registerLanguage($ukrainian);
 
-        // You can add more languages here
+        $translations = [];
+        $languageDir = $this->getDataFolder() . 'languages/';
+        $languageFiles = glob($languageDir . "*.yml");
+        foreach ($languageFiles as $file) {
+            $locale = basename($file, ".yml");
+            $translations[$locale] = (new Config($file, Config::YAML))->getAll();
+        }
+
+        // 2. Get the best available LocaleResolver from the LanguageHub
+        //    (LanguageManager will register a better one if installed)
+        $localeResolver = LanguageHub::getInstance()->getLocaleResolver();
+
+        // 3. Create your PluginTranslator instance
+        //    The last argument is your plugin's default locale if no player preference is found.
+        $this->translator = new PluginTranslator($this, $translations, $localeResolver, "en_US");
     }
 
-    public function getLanguageAPI(): LanguageAPI {
-        return $this->languageAPI;
-    }
+    // ... rest of your plugin
 }
 ```
 
-### 2. Translate Messages
+### 2. Translating Messages
 
-To translate messages, you'll use the `localize` method from `LanguageAPI`.
+Once you have your `PluginTranslator` instance, you can use its `translateFor()` or `translate()` methods.
 
 ```php
 <?php
@@ -113,25 +98,29 @@ namespace MyPlugin;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
-use pocketmine\utils\TextFormat as TF;
+use pocketmine\plugin\PluginBase;
 
 class MyPlugin extends PluginBase {
-    // ... (onEnable and other methods from above)
+    // ... (onEnable and $this->translator from above)
 
     public function onCommand(CommandSender $sender, Command $command, string $commandLabel, array $args): bool {
         if ($command->getName() === "mycommand") {
-            // Translate a simple message for the sender
-            $sender->sendMessage($this->languageAPI->localize($sender, "welcome.message"));
+            // Translate for a CommandSender (Player or Console)
+            $welcomeMessage = $this->translator->translateFor(
+                $sender, 
+                "myplugin.welcome.message",
+                ["player" => $sender->getName()]
+            );
+            $sender->sendMessage($welcomeMessage);
 
-            // Translate a message with placeholders for the sender
-            $playerName = $sender->getName();
-            $sender->sendMessage($this->languageAPI->localize($sender, "greeting.player", ["%player%" => $playerName]));
+            // Translate for a specific locale (e.g., for a broadcast)
+            $broadcastMessage = $this->translator->translate(
+                "uk_UA", // Specific locale
+                "myplugin.broadcast.message",
+                ["server" => "MyServer"]
+            );
+            $this->getServer()->broadcastMessage($broadcastMessage);
 
-            // List available languages
-            $sender->sendMessage($this->languageAPI->localize($sender, "command.lang.list.header"));
-            foreach ($this->languageAPI->getLanguages() as $locale => $langObject) {
-                $sender->sendMessage(TF::GREEN . $locale . ' - ' . $langObject->getTranslation("language.name"));
-            }
             return true;
         }
         return false;
@@ -139,95 +128,70 @@ class MyPlugin extends PluginBase {
 }
 ```
 
-## Advanced Usage / Scenarios
+## API Reference
 
-### Managing Player Languages
+### `ChernegaSergiy\Language\LanguageHub`
 
-You'll need to implement logic within your plugin to store and retrieve each player's preferred language. A common approach is to use a `Config` file per player or a single `Config` file mapping player names to locales.
+*   `getInstance()`: (Static) Returns the singleton instance of the hub.
+*   `registerLocaleResolver(LocaleResolverInterface $resolver)`: Registers a custom locale resolver. The last registered resolver takes precedence.
+*   `getLocaleResolver()`: Returns the currently active `LocaleResolverInterface` instance (either a custom one or `DefaultLocaleResolver`).
 
-**Example `player_languages.yml` (managed by your plugin):**
+### `ChernegaSergiy\Language\LocaleResolverInterface`
 
-```yaml
-Player1: en_US
-Player2: uk_UA
-```
+*   `resolve(Player $player): string`: Resolves the locale for a given player.
 
-**Loading Player Language (Helper Method Example):**
+### `ChernegaSergiy\Language\DefaultLocaleResolver`
 
-```php
-<?php
+*   Implements `LocaleResolverInterface`. Resolves locale by returning `$player->getLocale()`.
 
-namespace MyPlugin;
+### `ChernegaSergiy\Language\TranslatorInterface`
 
-use pocketmine\player\Player;
-use pocketmine\utils\Config;
+*   `translateFor(CommandSender $sender, string $key, array $args = []): string`: Translates a message for a given `CommandSender` (Player or Console).
+*   `translate(string $locale, string $key, array $args = []): string`: Translates a message for a specific locale.
 
-// ... other use statements
+### `ChernegaSergiy\Language\PluginTranslator`
 
-class MyPlugin extends PluginBase {
-    // ... existing properties and methods
+*   Implements `TranslatorInterface`. This is the concrete class plugins will use.
+*   `__construct(PluginBase $plugin, array $translations, LocaleResolverInterface $localeResolver, string $defaultLocale)`: Constructor.
 
-    /**
-     * Retrieves a player's stored language locale.
-     * If no language is stored, it defaults to "en_US".
-     * @param Player $player
-     * @return string The player's locale.
-     */
-    private function getPlayerLanguage(Player $player): string {
-        $playerDataPath = $this->getDataFolder() . "player_languages.yml";
-        $config = new Config($playerDataPath, Config::YAML);
-        return $config->get($player->getName(), "en_US"); // Default to en_US if not found
-    }
-}
-```
+### `ChernegaSergiy\Language\Language`
 
-**Saving Player Language (Command Example):**
+*   `__construct(string $locale, array $translations)`: Creates a new language instance.
+*   `getLocale()`: Returns the locale string (e.g., "en_US").
+*   `getTranslation(string $key): ?string`: Retrieves a raw translation string for a key, or `null` if not found.
+
+
+### 2. Getting a Translated Message
+
+To get a translated message, call the `localize()` method, making sure to pass your plugin instance (`$this`).
 
 ```php
 <?php
 
 namespace MyPlugin;
 
+use ChernegaSergiy\Language\LanguageAPI;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
-use pocketmine\utils\Config;
-use pocketmine\utils\TextFormat as TF;
-
-// ... other use statements
+use pocketmine\plugin\PluginBase;
 
 class MyPlugin extends PluginBase {
-    // ... existing properties and methods
+    // ... (onEnable and registerLanguages from above)
 
-    public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool {
-        if ($command->getName() === "setlang") {
-            if (!$sender instanceof Player) {
-                $sender->sendMessage(TF::RED . "This command can only be used by players.");
-                return true;
-            }
+    public function onCommand(CommandSender $sender, Command $command, string $commandLabel, array $args): bool {
+        if ($command->getName() === "mycommand") {
+            if (!$sender instanceof Player) return false;
 
-            if (count($args) < 1) {
-                $sender->sendMessage(TF::RED . "Usage: /setlang <locale>");
-                return true;
-            }
+            // Call localize(), passing your plugin instance ($this)
+            $welcomeMessage = LanguageAPI::getInstance()->localize(
+                $this, 
+                $sender, 
+                "myplugin.welcome.message",
+                ["player" => $sender->getName()]
+            );
 
-            $newLocale = $args[0];
-
-            // Validate the locale using LanguageAPI's getLanguageByLocale
-            // Note: This will return null if the language is not registered.
-            // You might want to register all valid languages in onEnable for this check to work.
-            if ($this->languageAPI->getLanguageByLocale($newLocale) === null) {
-                $sender->sendMessage(TF::RED . "Invalid language locale: " . $newLocale . ". See valid locales at https://github.com/ZtechNetwork/MCBVanillaResourcePack/blob/7a9c12d0e8680f3a2415bc87577cea99a73c254d/texts/languages.json.");
-                return true;
-            }
-
-            // Save the player's new language
-            $playerDataPath = $this->getDataFolder() . "player_languages.yml";
-            $config = new Config($playerDataPath, Config::YAML);
-            $config->set($sender->getName(), $newLocale);
-            $config->save();
-
-            $sender->sendMessage($this->languageAPI->localize($sender, "language_set_success", ["%locale%" => $newLocale]));
+            $sender->sendMessage($welcomeMessage);
             return true;
         }
         return false;
@@ -235,88 +199,16 @@ class MyPlugin extends PluginBase {
 }
 ```
 
-> [!NOTE]
-> For a complete, working example of how to manage player languages and utilize the `libLanguage` virion, you can download the `LanguageManager` plugin directly from its Poggit-CI page: [LanguageManager on Poggit-CI](https://poggit.pmmp.io/ci/newlandpe/LanguageManager/LanguageManager)
-
-### Adding New Languages
-
-To add a new language, simply create a new YAML file in your plugin's `languages/` folder (e.g., `es_ES.yml`) and register it using `LanguageAPI::registerLanguage()` with a `Language` instance.
-
-**Example `languages/en_US.yml`:**
-
-```yaml
-welcome.message: "Welcome to the server!"
-greeting.player: "Hello, %player%!"
-command.lang.usage: "Usage: /mycommand lang <list|set <locale>>"
-command.lang.list.header: "Available Languages:"
-command.lang.set.success: "Your language has been set to %locale%."
-command.lang.set.not_exists: "Language %locale% does not exist."
-language.name: "English" # Self-descriptive name for the language
-```
-
-**Example `languages/uk_UA.yml`:**
-
-```yaml
-welcome.message: "Ласкаво просимо на сервер!"
-greeting.player: "Привіт, %player%!"
-command.lang.usage: "Використання: /mycommand lang <list|set <локаль>>"
-command.lang.list.header: "Доступні мови:"
-command.lang.set.success: "Вашу мову встановлено на %locale%."
-command.lang.set.not_exists: "Мова %locale% не існує."
-language.name: "Українська"
-```
-
-### Per-Plugin Language Isolation
-
-The `libLanguage` virion is designed to support per-plugin language isolation. This means each plugin can manage its own set of translations without conflicting with other plugins using the same virion.
-
-To achieve this, simply instantiate `LanguageAPI` within your plugin's `onEnable()` method (as shown in the "Initialize LanguageAPI" section). Each `LanguageAPI` instance will have its own `Translator` and manage its own language data independently.
-
-```php
-<?php
-
-namespace MyPlugin;
-
-use ChernegaSergiy\Language\Language;
-use ChernegaSergiy\Language\LanguageAPI;
-use pocketmine\plugin\PluginBase;
-
-class MyPlugin extends PluginBase {
-
-    private LanguageAPI $myPluginLanguageAPI; // Unique instance for this plugin
-
-    public function onEnable(): void {
-        $this->myPluginLanguageAPI = new LanguageAPI(); // Creates an isolated language manager
-        // ... register languages and set default for this plugin
-    }
-
-    // ... other plugin methods using $this->myPluginLanguageAPI
-}
-```
-
-## API Reference (Key Methods)
+## API Reference
 
 ### `ChernegaSergiy\Language\LanguageAPI`
 
-* `__construct()`: Initializes the API (no parameters).
-* `registerLanguage(Language $language)`: Registers a `Language` instance.
-* `setDefaultLanguage(Language $language)`: Sets the default language.
-* `getTranslator()`: Returns the `Translator` instance.
-* `localize(?CommandSender $sender, string $key, array $args = [])`: Localizes a message for a given `CommandSender` or `null` (for console/server messages).
-* `resolveLocale(?CommandSender $sender)`: Resolves the language locale for a given `CommandSender` or `null` (for console/server).
-* `getLanguageByLocale(string $locale)`: Retrieves a `Language` by its locale string.
-* `getLanguages()`: Returns an array of all registered `Language` instances.
-
-### `ChernegaSergiy\Language\Translator`
-
-* `translate(string $key, array $args = [], ?string $locale = null)`: Translates a message key.
-  * `$key`: The translation key (e.g., "welcome.message").
-  * `$args`: An associative array of placeholders and their values (e.g., `["%player%" => "Steve"]`).
-  * `$locale`: Optional. The locale to translate to. If `null`, uses the default language.
-* `getLanguageByLocale(string $locale)`: Retrieves a `Language` by its locale string.
-* `getLanguages()`: Returns an array of all registered `Language` instances.
-* `isLanguageRegistered(string $locale)`: Checks if a language with the given locale is already registered.
-* `getDefaultLanguage()`: Returns the default `Language` instance, or `null` if no default language is set.
+* `getInstance()`: (Static) Returns the singleton instance of the API.
+* `registerLanguage(PluginBase $plugin, Language $language)`: Registers a `Language` instance for a specific plugin.
+* `clearLanguages(PluginBase $plugin)`: Clears all languages registered by a specific plugin.
+* `localize(PluginBase $plugin, ?CommandSender $sender, string $key, array $args = [])`: Localizes a message, searching in the plugin's scope first, then falling back to the global scope.
+* `setGlobalScope(string $pluginName)`: To be used by a language manager plugin to declare itself as the global fallback provider.
+* `registerLanguageProvider(\Closure $provider)`: To be used by a language manager plugin to provide player-specific language logic.
 
 ### `ChernegaSergiy\Language\Language`
 

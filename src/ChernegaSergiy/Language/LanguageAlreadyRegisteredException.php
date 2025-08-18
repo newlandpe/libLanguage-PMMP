@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ChernegaSergiy\Language\exception;
+namespace ChernegaSergiy\Language;
 
 use InvalidArgumentException;
 
