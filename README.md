@@ -257,13 +257,13 @@ language.name: "English" # Self-descriptive name for the language
 **Example `languages/uk_UA.yml`:**
 
 ```yaml
-welcome.message: "������� ������� �� ������!"
-greeting.player: "�����, %player%!"
-command.lang.usage: "������������: /mycommand lang <list|set <locale>>"
-command.lang.list.header: "�������� ����:"
-command.lang.set.success: "���� ���� ����������� �� %locale%."
-command.lang.set.not_exists: "���� %locale% �� ����."
-language.name: "���������"
+welcome.message: "Ласкаво просимо на сервер!"
+greeting.player: "Привіт, %player%!"
+command.lang.usage: "Використання: /mycommand lang <list|set <локаль>>"
+command.lang.list.header: "Доступні мови:"
+command.lang.set.success: "Вашу мову встановлено на %locale%."
+command.lang.set.not_exists: "Мова %locale% не існує."
+language.name: "Українська"
 ```
 
 ### Per-Plugin Language Isolation
