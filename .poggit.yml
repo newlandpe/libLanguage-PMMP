@@ -1,4 +1,4 @@
---- # Poggit-CI Manifest. Open the CI at https://poggit.pmmp.io/ci/newlandpe/libLanguage
+---
 branches:
 - main
 projects:
@@ -6,4 +6,3 @@ projects:
     path: ""
     type: library
     model: virion
-...
